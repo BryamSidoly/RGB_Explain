@@ -1311,7 +1311,7 @@
             transmission: 0.9,
             thickness: 0.5
         });
-        const packageMaterial = new THREE.MeshStandardMaterial({ color: 0xededed, roughness: 0.3 });
+        const packageMaterial = new THREE.MeshStandardMaterial({ color: 0xededed, roughness: 0.3, transparent: true, opacity: 1 });
         const lensMaterial = new THREE.MeshPhysicalMaterial({
             color: 0xffffff,
             transparent: true,
@@ -1504,6 +1504,27 @@
             });
         }
 
+        // Restore the physical model to its assembled state for the educational steps.
+        // This prevents exploded-view transforms from leaking into the later animations.
+        function restoreAssembledModel() {
+            anime.remove([
+                components.siliconeLayer.position,
+                ...components.copperTraces.map(t => t.position),
+                ...components.ledPackages.map(p => p.position),
+                ...components.resistors.map(r => r.position),
+                ...components.lenses.map(l => l.position)
+            ]);
+
+            components.siliconeLayer.position.y = 0.45;
+            components.copperTraces.forEach(t => t.position.y = -0.04);
+            components.ledPackages.forEach(p => p.position.y = 0.2);
+            components.resistors.forEach(r => r.position.y = 0.075);
+            components.lenses.forEach(l => l.position.y = 0.41);
+
+            packageMaterial.opacity = 1;
+            lensMaterial.opacity = 0.4;
+        }
+
         // Camera Choreography and Component Animations per Step
         function goToStep(step) {
             state.currentStep = step;
@@ -1523,6 +1544,12 @@
                 initExtendedAnimations();
                 state.extendedAnimationsInitialized = true;
             }
+            // Keep the physical model consistent after the exploded/X-Ray stages.
+            // Steps 4–16 use the assembled strip again.
+            if (step >= 4) {
+                restoreAssembledModel();
+            }
+
             switch (step) {
                 case 0: // Visão Geral
                     anime({
@@ -1547,6 +1574,7 @@
                         targets: components.copperTraces.map(t => t.position),
                         y: -0.04, duration: 1200, easing: 'easeOutQuad'
                     });
+                    packageMaterial.opacity = 1;
                     components.ledPackages.forEach(p => anime({ targets: p.position, y: 0.2, duration: 1000 }));
                     components.resistors.forEach(r => anime({ targets: r.position, y: 0.075, duration: 1000 }));
                     components.lenses.forEach(l => {
@@ -1588,6 +1616,7 @@
                         targets: components.copperTraces.map(t => t.position),
                         y: -0.8, duration: 1500, easing: 'easeOutExpo'
                     });
+                    packageMaterial.opacity = 1;
                     components.ledPackages.forEach(p => anime({ targets: p.position, y: 1.0, duration: 1500, easing: 'easeOutExpo' }));
                     components.resistors.forEach(r => anime({ targets: r.position, y: 0.6, duration: 1500, easing: 'easeOutExpo' }));
                     components.lenses.forEach(l => {
@@ -1638,7 +1667,20 @@
                             easing: 'easeInOutQuad'
                         });
                     });
-                    components.ledPackages.forEach(p => anime({ targets: p.position, y: 0.2, duration: 1200 }));
+                    // Remove the opaque 5050 package from the viewing path so
+                    // the internal RGB dies, WS2812B die and bonding wires are visible.
+                    components.ledPackages.forEach(p => anime({
+                        targets: p.position,
+                        y: 1.5,
+                        duration: 1200,
+                        easing: 'easeOutExpo'
+                    }));
+                    anime({
+                        targets: packageMaterial,
+                        opacity: 0,
+                        duration: 900,
+                        easing: 'easeInOutQuad'
+                    });
                     anime({ targets: components.siliconeLayer.position, y: 3.5, duration: 1200 });
                     break;
 
@@ -1655,6 +1697,18 @@
                         duration: 1800,
                         easing: 'easeInOutCubic'
                     });
+
+                    // Keep the exploded/X-Ray state from step 2 so the
+                    // internal WS2812B and RGB dies remain visible.
+                    components.ledPackages.forEach(p => {
+                        p.position.y = 1.5;
+                    });
+                    packageMaterial.opacity = 0;
+                    components.lenses.forEach(l => {
+                        l.position.y = 2.2;
+                    });
+                    lensMaterial.opacity = 0;
+                    components.siliconeLayer.position.y = 3.5;
 
                     // Pulse microchip color
                     anime({
